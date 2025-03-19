@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Chia Sẻ Màn Hình</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    #video { width: 80%; border: 1px solid #ccc; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <h1>Ứng dụng Chia Sẻ Màn Hình</h1>
+  <button id="shareScreenBtn">Chia Sẻ Màn Hình</button>
+  <br>
+  <video id="video" autoplay playsinline></video>
+  
+  <script>
+    const shareScreenBtn = document.getElementById('shareScreenBtn');
+    const videoElem = document.getElementById('video');
+
+    shareScreenBtn.addEventListener('click', async () => {
+      try {
+        // Yêu cầu trình duyệt cho phép chia sẻ màn hình
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
+        videoElem.srcObject = stream;
+      } catch (error) {
+        console.error("Có lỗi xảy ra khi chia sẻ màn hình:", error);
+        alert("Không thể chia sẻ màn hình. Vui lòng kiểm tra lại quyền truy cập hoặc trình duyệt của bạn.");
+      }
+    });
+  </script>
+</body>
+</html>
