@@ -11,8 +11,8 @@
     #coords { margin-top: 10px; }
     #btnClear { margin-top: 10px; }
   </style>
-  <!-- Load OpenCV.js (phiên bản build mới nhất) -->
-  <script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady();" ></script>
+  <!-- Sử dụng defer để đảm bảo thứ tự tải và thực thi script -->
+  <script src="https://docs.opencv.org/4.x/opencv.js" defer></script>
 </head>
 <body>
   <h2>Chấm Phiếu Trắc Nghiệm</h2>
@@ -28,23 +28,27 @@
     <h3>Tọa độ vùng đáp án đã chọn:</h3>
     <pre id="coordList"></pre>
   </div>
-  <div id="message"></div>
+  <div id="message">Đang tải OpenCV, vui lòng chờ...</div>
 
   <script>
     let cvReady = false;
-    let img = null;
     let srcMat = null;
     let cornerPoints = [];
     let answerPoints = [];
-    let canvas = document.getElementById('canvasOutput');
+    const canvas = document.getElementById('canvasOutput');
     let ctx = canvas.getContext('2d');
 
-    // Chờ OpenCV khởi tạo xong
-    function onOpenCvReady() {
-      cv['onRuntimeInitialized']= () => {
-        cvReady = true;
-        document.getElementById('message').innerText = 'OpenCV đã sẵn sàng.';
-      }
+    // Khi OpenCV đã được tải và khởi tạo
+    function onCvInitialized() {
+      cvReady = true;
+      document.getElementById('message').innerText = 'OpenCV đã sẵn sàng.';
+    }
+
+    // Chờ đến khi OpenCV được tải (trong một số phiên bản, OpenCV sẽ gọi cv.onRuntimeInitialized)
+    if (typeof cv === 'undefined') {
+      console.error("cv không tồn tại. Hãy chắc chắn rằng đường dẫn OpenCV.js chính xác.");
+    } else {
+      cv.onRuntimeInitialized = onCvInitialized;
     }
 
     // Xử lý file upload
@@ -66,14 +70,11 @@
     function loadImage(src) {
       let image = new Image();
       image.onload = function() {
-        // Cài đặt kích thước canvas bằng kích thước ảnh
         canvas.width = image.width;
         canvas.height = image.height;
         ctx.drawImage(image, 0, 0);
-        // Lưu lại ảnh dưới dạng cv.Mat
         if (srcMat) srcMat.delete();
         srcMat = cv.imread(canvas);
-        // Sau khi load ảnh, tự động xử lý phát hiện góc
         detectCorners();
       }
       image.src = src;
@@ -84,27 +85,23 @@
       if (!srcMat) return;
       let gray = new cv.Mat();
       cv.cvtColor(srcMat, gray, cv.COLOR_RGBA2GRAY, 0);
-      // Làm mờ và sử dụng Canny để phát hiện cạnh
       let blurred = new cv.Mat();
       cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
       let edges = new cv.Mat();
       cv.Canny(blurred, edges, 50, 150);
       
-      // Tìm các contour
       let contours = new cv.MatVector();
       let hierarchy = new cv.Mat();
       cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
       
-      // Tìm contour có diện tích lớn nhất và có thể xấp xỉ thành đa giác 3 hoặc 4 điểm
       let maxArea = 0;
       let approxContour = null;
       for (let i = 0; i < contours.size(); i++) {
         let cnt = contours.get(i);
         let area = cv.contourArea(cnt, false);
-        if (area < 1000) { cnt.delete(); continue; } // loại bỏ các vùng nhỏ
+        if (area < 1000) { cnt.delete(); continue; }
         let approx = new cv.Mat();
         cv.approxPolyDP(cnt, approx, 0.02 * cv.arcLength(cnt, true), true);
-        // Nếu tìm được đa giác 3 hoặc 4 điểm
         if ((approx.rows === 3 || approx.rows === 4) && area > maxArea) {
           maxArea = area;
           if (approxContour !== null) approxContour.delete();
@@ -115,7 +112,6 @@
         cnt.delete();
       }
       
-      // Vẽ các điểm phát hiện được lên canvas
       cornerPoints = [];
       if (approxContour) {
         for (let i = 0; i < approxContour.rows; i++) {
@@ -127,7 +123,7 @@
         }
         approxContour.delete();
       }
-      // Vẽ lên canvas: hiển thị ảnh gốc và các điểm góc
+      
       cv.imshow('canvasOutput', srcMat);
       ctx = canvas.getContext('2d');
       ctx.fillStyle = 'red';
@@ -139,22 +135,19 @@
         ctx.fill();
       });
       
-      // Thông báo số điểm góc phát hiện
       let msg = cornerPoints.length > 0 ?
         `Đã phát hiện ${cornerPoints.length} điểm góc (tự động). Nếu chưa chính xác, bạn có thể click vào canvas để đánh dấu lại.` :
         'Không phát hiện được điểm góc tự động. Vui lòng click trực tiếp vào các điểm góc trên canvas.';
       document.getElementById('message').innerText = msg;
       
-      // Giải phóng bộ nhớ
       gray.delete(); blurred.delete(); edges.delete(); hierarchy.delete(); contours.delete();
     }
 
-    // Cho phép người dùng click vào canvas để đánh dấu tọa độ vùng đáp án (các ô chọn đáp án)
+    // Cho phép người dùng click vào canvas để đánh dấu tọa độ vùng đáp án
     canvas.addEventListener('click', function(e) {
       let rect = canvas.getBoundingClientRect();
       let x = e.clientX - rect.left;
       let y = e.clientY - rect.top;
-      // Vẽ một hình tròn nhỏ tại điểm click
       ctx.fillStyle = 'blue';
       ctx.beginPath();
       ctx.arc(x, y, 5, 0, 2 * Math.PI);
@@ -163,19 +156,15 @@
       updateCoordList();
     });
 
-    // Cập nhật danh sách tọa độ vùng đáp án
     function updateCoordList() {
       let coordList = document.getElementById('coordList');
       coordList.textContent = answerPoints.map((pt, index) => `Điểm ${index+1}: (${pt.x}, ${pt.y})`).join('\n');
     }
 
-    // Nút xoá vùng đánh dấu đáp án
     document.getElementById('btnClear').addEventListener('click', function() {
       answerPoints = [];
       updateCoordList();
-      // Vẽ lại ảnh gốc và các điểm góc tự động
       if (srcMat) cv.imshow('canvasOutput', srcMat);
-      // Vẽ lại các điểm góc tự động (nếu có)
       ctx = canvas.getContext('2d');
       ctx.fillStyle = 'red';
       cornerPoints.forEach(pt => {
