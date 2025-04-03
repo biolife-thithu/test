@@ -11,7 +11,7 @@
     #coords { margin-top: 10px; }
     #btnClear { margin-top: 10px; }
   </style>
-  <!-- Sử dụng defer để đảm bảo thứ tự tải và thực thi script -->
+  <!-- Sử dụng defer cho OpenCV.js -->
   <script src="https://docs.opencv.org/4.5.2/opencv.js" defer></script>
 </head>
 <body>
@@ -30,7 +30,8 @@
   </div>
   <div id="message">Đang tải OpenCV, vui lòng chờ...</div>
 
-  <script>
+  <!-- Đặt mã chính ở cuối body và sử dụng defer để đảm bảo chạy sau OpenCV.js -->
+  <script defer>
     let cvReady = false;
     let srcMat = null;
     let cornerPoints = [];
@@ -38,18 +39,22 @@
     const canvas = document.getElementById('canvasOutput');
     let ctx = canvas.getContext('2d');
 
-    // Khi OpenCV đã được tải và khởi tạo
+    // Hàm khởi tạo khi OpenCV đã sẵn sàng
     function onCvInitialized() {
       cvReady = true;
       document.getElementById('message').innerText = 'OpenCV đã sẵn sàng.';
     }
 
-    // Chờ đến khi OpenCV được tải (trong một số phiên bản, OpenCV sẽ gọi cv.onRuntimeInitialized)
-    if (typeof cv === 'undefined') {
-      console.error("cv không tồn tại. Hãy chắc chắn rằng đường dẫn OpenCV.js chính xác.");
-    } else {
-      cv.onRuntimeInitialized = onCvInitialized;
+    // Nếu cv đã tồn tại, gán callback; nếu không, hãy poll đợi
+    function waitForCv() {
+      if (typeof cv !== 'undefined' && cv.onRuntimeInitialized) {
+        cv.onRuntimeInitialized = onCvInitialized;
+      } else {
+        console.log('Chờ OpenCV...');
+        setTimeout(waitForCv, 100);
+      }
     }
+    waitForCv();
 
     // Xử lý file upload
     document.getElementById('fileInput').addEventListener('change', function(e) {
